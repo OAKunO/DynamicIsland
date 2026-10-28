@@ -1,6 +1,19 @@
-# 首次 GitHub 发布流程
+# GitHub 发布与预构建版本
 
-本文记录首次发布与后续维护步骤。维护者已确认采用 MIT、版权署名 OAKunO，选择独立的干净源码快照，并于 2026-10-28 明确授权公开到 `OAKunO/DynamicIsland`。发布提交采用 GitHub 隐私署名，避免公开私人邮箱。当前范围为源码仓库，暂不发布安装包、不申请 Developer ID、不涉及 Mac App Store。
+本文记录源码发布、下载版本与后续维护步骤。维护者已确认采用 MIT、版权署名 OAKunO，选择独立的干净源码快照，并于 2026-10-28 明确授权公开到 `OAKunO/DynamicIsland`。源码仓库已公开；当前新增已验证的预构建应用和下载说明。发布提交采用 GitHub 隐私署名，避免公开私人邮箱。项目未上架 Mac App Store。
+
+## 下载版本
+
+- 首个可下载预览版：[v1.0.0-preview.1](https://github.com/OAKunO/DynamicIsland/releases/tag/v1.0.0-preview.1)，应用版本 1.0（build 1），架构 arm64。
+- Release 资源为 `DynamicIsland-1.0-arm64.zip` 与 `DynamicIsland-1.0-arm64.zip.sha256`。运行无需 Xcode；下载与安装说明见 [README](../README.md)。
+- 应用已通过 Developer ID Application 签名、Apple 公证、公证票据、Gatekeeper 和 ZIP 解压复验；包内提供 MIT License、安装说明与 Applications 链接。
+- SHA-256：`3b72b7a082b0c299f4fe87e6c36201667ff696b12b3f468e6a35572936058787`。
+- 最低部署版本 macOS 26.5 尚未实机验收；已验证构建环境为 macOS 27.0.1 / Xcode 27.0。Intel / Universal，以及另一台无 Xcode 的 Mac 上的完整运行验收尚未完成；其他限制见 README。
+- 应用构建源码基线为 `b513b09dcce00a537845580abbb41cd9685d559a`；下载说明是之后独立的文档更新，没有改变已公证应用。本次没有进行真实屏幕录制。
+
+下载版使用发布者的 Developer ID 身份，本机维护的开发安装版本仍遵守 [AGENTS.md](../AGENTS.md) 的固定本地身份和安装流程。私钥只在钥匙串中使用，不提交、不打印、不随包提供；不删除或重建已有的本地开发身份。签名证书会显示开发者账号的姓名或组织名，发布前同时核对证书和包内文件不含私人邮箱。
+
+`.xcarchive`、`.dSYM`、证书、CSR、钥匙串、账号凭证和构建日志不作为下载资源上传。准备阶段文件名含 local-preview 或 awaiting-notarization 的候选产物不代表最终公证包，不发布为正式下载。发布后须从公开地址下载资源，复核大小、SHA-256、版本与 README 链接；不要仅凭本地文件名或上传成功提示判断完整性。
 
 ## 已确认事项
 
