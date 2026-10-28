@@ -1,0 +1,63 @@
+# Local build and Xcode user state.
+/.derivedData/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+/build/
+*.xcarchive/
+*.dSYM/
+.DS_Store
+*.xcresult/
+*.xccheckout
+*.xcscmblueprint
+.build/
+
+# Local editor, assistant and machine configuration.
+/.idea/
+/.vscode/
+/.agents/
+/.codex/
+/.aws/
+/.ssh/
+*.swp
+*.swo
+*~
+
+# Local previews, design sources and delivery artifacts are not app resources.
+/output/
+/generated_images/
+
+# Local credentials and signing material must stay outside source control.
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.p8
+*.pem
+*.key
+*.cer
+*.crt
+*.csr
+*.der
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+*.keychain
+*.keychain-db
+
+# Local app bundles, installers, diagnostic logs and runtime databases.
+*.app/
+*.dmg
+*.pkg
+*.log
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+.netrc
+.npmrc
+.git-credentials
+id_rsa*
+id_ed25519*
+memos-v1.json

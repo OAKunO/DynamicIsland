@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>用于录屏时录制系统声音，以及检测音频播放状态。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>在你开启录屏麦克风选项时录制麦克风声音。</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>用于读取 Apple Music 当前播放歌曲的封面。</string>
+	<key>NSAccessibilityUsageDescription</key>
+	<string>用于读取 Apple Music 歌词面板中的歌词文本。</string>
+</dict>
+</plist>

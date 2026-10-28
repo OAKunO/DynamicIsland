@@ -1,0 +1,33 @@
+name: Bug report
+description: 报告可复现的问题，请先移除私人数据。
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请勿提交 token、签名私钥、完整任务 transcript、个人数据库或未经脱敏的桌面截图。
+        仅填写必要环境信息；不需要主机名、设备序列号或用户名。
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: macOS、芯片架构、Xcode 版本，以及构建使用的 commit。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: 复现步骤、相关模块和系统权限状态。
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: 可选；移除任务标题、路径、transcript、设备标识和私人屏幕内容后再附上。

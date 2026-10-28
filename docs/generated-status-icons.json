@@ -1,0 +1,32 @@
+{
+  "generated_on": "2026-10-28",
+  "tool": "built-in image_gen",
+  "license": "MIT",
+  "copyright": "Copyright (c) 2026 OAKunO",
+  "status": "User selected C1 and D1 for application and local publication snapshot",
+  "official_brand_assets": false,
+  "assets": [
+    {
+      "integration": "codex",
+      "selected_candidate": "C1",
+      "name": "代码火花",
+      "path": "DynamicIsland/Assets.xcassets/CodexStatusIcon.imageset/codex-code-spark.png",
+      "reference_sha256": "32693be798ca5528a10699569a3c95abee8ff02a09541ccbc6776840a73ddcb1",
+      "sha256": "7d8c024a0fd0ee713aa520d0937ff5f3aeb1ea96fd66204ba4a3110b7fef0c27",
+      "generation_prompt": "Use case: logo-brand. Asset type: an original small macOS menu-bar status glyph inside an independent utility, not an official product logo. Generate exactly ONE isolated icon, not a contact sheet. Square 1024px composition, genuine transparent background. Main silhouette occupies about 72 percent of the canvas with generous transparent padding. Flat, polished, bold vector-like raster artwork, front view, geometric precision, rounded ends, optically balanced, readable at 18px. Solid fills, thick structural parts, a few generous negative spaces, no hairlines. No text, letters, numbers, app tile, rounded-square background, shadows, glow, gradients, texture, watermark, scenery or mockup. Do not copy or resemble the OpenAI six-lobed interwoven knot/Blossom, ChatGPT logo, DeepSeek whale, or other existing company logos. These are independent integration symbols, not official marks.\nSubject: a fresh original symbol for a coding assistant. Two sturdy opposing angle-bracket forms frame a single bold four-point spark at the center, with the spark feeling like the intelligence between the brackets. A compact coherent silhouette, wide horizontal rhythm, substantial empty gaps between the three elements. Color: pure warm white #F7F7F2 only, including the spark. No enclosing circle.",
+      "refinement_prompt": "Use case: precise-object-edit. This attached image is the EDIT TARGET: the user-selected C1 coding-assistant glyph. Preserve exactly its design: two rounded white opposing angle brackets and one central white four-point sparkle, their layout, relative proportions, orientation, and warm white color. Change ONLY production edge quality: remove ALL scattered speckles, ghost pixels, cloudy fringes and grain between or around the three intended shapes; make every negative-space region and the outer canvas genuinely fully transparent, including the gaps beside the sparkle. Make the three intended shapes solid flat warm white, with crisp smooth antialiased boundaries, no texture, shadow, gradient, glow or stroke. Keep generous even transparent padding and square composition. The output must contain exactly those three clean shapes, nothing else. Suitable for an 18px macOS status glyph. No text, no new symbols, no official company marks. Do not redesign.",
+      "notes": "Independent integration symbol, not an official logo; transparent raster; Codex rendered as a white template in the UI."
+    },
+    {
+      "integration": "deepseek",
+      "selected_candidate": "D1",
+      "name": "探索星镜（蓝色放大镜）",
+      "path": "DynamicIsland/Assets.xcassets/DeepSeekStatusIcon.imageset/deepseek-discovery.png",
+      "reference_sha256": "22d3b8bad623fa9e88533953cb6239909d9017f0326bc78f6200c8a27a378917",
+      "sha256": "5a34cbeb7dbe7fab9073c07870a12594c285cb92e1af25bec8317f7b93b7f439",
+      "generation_prompt": "Use case: logo-brand. Asset type: an original small macOS menu-bar status glyph inside an independent utility, not an official product logo. Generate exactly ONE isolated icon, not a contact sheet. Square 1024px composition, genuine transparent background. Main silhouette occupies about 72 percent of the canvas with generous transparent padding. Flat, polished, bold vector-like raster artwork, front view, geometric precision, rounded ends, optically balanced, readable at 18px. Solid fills, thick structural parts, a few generous negative spaces, no hairlines. No text, letters, numbers, app tile, rounded-square background, shadows, glow, gradients, texture, watermark, scenery or mockup. Do not copy or resemble the OpenAI six-lobed interwoven knot/Blossom, ChatGPT logo, DeepSeek whale, or other existing company logos. These are independent integration symbols, not official marks.\nSubject: a fresh original symbol for an AI research and agent harness integration, expressing discovery and reasoning. A bold clean magnifying glass tilted diagonally with its short substantial handle down-right; one large four-point star is centered within the clear lens opening, separated from its ring by ample transparent space. Circular lens with thick rounded ring, minimal strong silhouette. Color: solid vivid periwinkle blue #5B78FF only. No animal, no whale, no ocean, no text.",
+      "refinement_prompt": "Use case: precise-object-edit. This attached image is the EDIT TARGET: the user-selected D1 blue discovery glyph. Preserve exactly its design: a bold blue magnifying glass, circular thick lens ring, short handle pointing down-right, and one centered rounded four-point sparkle. Preserve layout, silhouette, relative proportions, orientation and vivid periwinkle blue. Change ONLY production edge quality: remove ALL scattered dots, ghost pixels, grain and residual opaque pixels inside the lens and around the outside; all negative-space regions must be completely transparent. Keep the intended blue shapes flat and solid with crisp smooth antialiased boundaries, no texture, gradients, shadows, glow or outlines. Keep generous even transparent padding and square composition. Output just the magnifying-glass shape plus its blue central sparkle. Suitable for 18px macOS status display. No text, no new elements, no animal or official company marks. Do not redesign.",
+      "notes": "Independent integration symbol, not an official logo; transparent blue raster."
+    }
+  ]
+}
