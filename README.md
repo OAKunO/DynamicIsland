@@ -1,8 +1,29 @@
 # DynamicIsland
 
-macOS 菜单栏灵动岛：把 AI 任务、音乐、计时、电源与设备状态放到屏幕顶部，并提供本地备忘录和录屏工具。使用 Swift / SwiftUI / AppKit 编写，当前面向从源码构建的用户。
+macOS 菜单栏灵动岛：把 AI 任务、音乐、计时、电源与设备状态放到屏幕顶部，并提供本地备忘录和录屏工具。使用 Swift / SwiftUI / AppKit 编写，提供可直接运行的预构建应用，也支持从源码构建。
 
-> 源码和项目自定义图标采用 MIT License，见[素材清单](docs/assets.md)。当前提供从源码构建的方式，尚未提供正式分发安装包。
+> 源码和项目自定义图标采用 MIT License，见[素材清单](docs/assets.md)。普通用户可下载已签名、公证的 Apple silicon 预览版，运行无需 Xcode。
+
+## 下载与安装（无需 Xcode）
+
+当前下载版为 **1.0 Apple silicon 预览版**（应用版本 1.0，build 1）：
+
+- **[下载应用 ZIP（arm64，约 3.7 MB）](https://github.com/OAKunO/DynamicIsland/releases/download/v1.0.0-preview.1/DynamicIsland-1.0-arm64.zip)**
+- [版本说明与 SHA-256 校验文件](https://github.com/OAKunO/DynamicIsland/releases/tag/v1.0.0-preview.1)
+
+1. 下载 ZIP 并解压，打开其中的 `DynamicIsland` 文件夹。Release 页面自动生成的 `Source code` 是源码，不是预构建应用。
+2. 将 `DynamicIsland.app` 拖到旁边的 `Applications` 链接，或手动复制到「应用程序」。
+3. 从「应用程序」打开 DynamicIsland，按 macOS 提示确认首次打开及相关功能权限；通过菜单栏「设置…」配置模块。
+
+下载包内的应用使用 **Developer ID Application 签名和 Apple 公证**，已附加公证票据；签名、Gatekeeper 与 ZIP 解压后的副本均已验证。普通用户不需要运行下方的本地签名脚本，也不需要安装 Xcode。系统权限和可选第三方集成仍按[隐私与权限](PRIVACY.md)及下方兼容性说明使用。
+
+当前只提供 **Apple silicon / arm64** 应用。最低部署版本为 **macOS 26.5**，但尚未在该最低版本或另一台无 Xcode 的 Mac 上做完整实机验收；已验证构建环境为 macOS 27.0.1。Intel / Universal 未验证。
+
+下载 ZIP 和对应的 `.sha256` 文件到同一目录后，可在 Terminal 校验：
+
+```sh
+shasum -a 256 -c DynamicIsland-1.0-arm64.zip.sha256
+```
 
 ## 功能
 
@@ -26,7 +47,7 @@ macOS 菜单栏灵动岛：把 AI 任务、音乐、计时、电源与设备状�
 | --- | --- |
 | 最低部署版本 | 工程与本次构建产物均为 **macOS 26.5**；未在该最低版本实机验收 |
 | 已验证环境 | macOS 27.0.1、Xcode 27.0（27A266a）、Apple Swift 6.4 |
-| Xcode 要求 | 使用完整 Xcode；当前可复现基线为 27.0，更早版本的最低要求尚未验证；仅 Command Line Tools 不足以完成工程构建 |
+| Xcode 要求（仅源码构建） | 使用完整 Xcode；当前可复现基线为 27.0，更早版本的最低要求尚未验证；仅 Command Line Tools 不足以完成工程构建；预构建应用运行无需 Xcode |
 | Apple silicon | 本次 Release 构建、自动检查与离屏 UI 渲染已通过；产物为 `arm64` |
 | Intel / Universal | 未构建、未运行验证；不承诺 `x86_64` 或 Universal 支持 |
 | 构建依赖 | 系统框架，无 Swift Package、CocoaPods 或外部二进制包；部分可选集成另有运行时依赖 |
@@ -34,6 +55,8 @@ macOS 菜单栏灵动岛：把 AI 任务、音乐、计时、电源与设备状�
 以上验证不等同于全部功能的实机端到端验收，尤其是真实录屏、设备、锁屏通知与多显示器行为。
 
 ## 从源码构建与运行
+
+仅修改代码或自行编译时需要以下开发环境。直接使用应用请按上方下载说明安装。
 
 下载或克隆本仓库，在包含 `DynamicIsland.xcodeproj` 的仓库根目录打开 Terminal：
 
@@ -89,7 +112,7 @@ open /Applications/DynamicIsland.app
 
 Bundle ID 固定为 `OAKunO.DynamicIsland`；每位开发者在自己的钥匙串中使用上述同名本地身份，**不共享维护者的私钥**。固定证书用于保持本机迭代构建的代码身份一致，签名验证本身不会授予录屏等系统权限。
 
-本地自签身份不等同于 Apple 签发的 Developer ID，也不包含 Apple 公证（notarization）。它不能作为面向其他用户下载时的 Gatekeeper 信任保证。Developer ID 与公证属于未来正式分发的另一个流程，见 [Apple 说明](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)。从源码进行本地构建不需要本项目维护者购买 Apple Developer Program。本次未涉及 Mac App Store、Developer ID 申请或正式分发包。
+本地自签身份不等同于 Apple 签发的 Developer ID，也不包含 Apple 公证（notarization）。它不能作为面向其他用户下载时的 Gatekeeper 信任保证。Release 下载版使用发布者的 Developer ID 签名并经过 Apple 公证，见 [Apple 说明](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)。源码开发者仍在自己的钥匙串中使用本地开发身份，无需共享发布者证书或购买开发者计划来进行本地构建。项目未上架 Mac App Store。
 
 完整本机构建与安装约束见 [AGENTS.md](AGENTS.md)。不要用未签名或 ad-hoc 签名的产物安装覆盖本机应用。
 
@@ -136,4 +159,4 @@ zsh scripts/render-notes-ui.sh
 
 Codex 使用自定义「代码火花」，DeepSeek Harness 使用自定义「蓝色放大镜」；两者由 AI 生成并经维护者选定，应用资源与公开候选不再包含此前的 OpenAI 结形图标或 DeepSeek 鲸鱼 SVG。这些状态标识不表示官方关系或背书。README 只使用本项目离屏渲染的样例。素材及生成记录见 [docs/assets.md](docs/assets.md) 和 [生成 prompts](docs/generated-status-icons.json)，替换前的官方条款核验留存于[品牌图形说明](docs/brand-usage-review.md)。
 
-`output/`、`generated_images/`、`.derivedData/` 是本地预览、宣传源文件和构建结果，应用不读取它们，已从新增文件候选中排除。`.gitignore` 不会清理已跟踪文件或历史；首次发布的审核步骤见 [docs/publishing.md](docs/publishing.md)。
+`output/`、`generated_images/`、`.derivedData/` 是本地预览、宣传源文件和构建结果，应用不读取它们，已从源码候选中排除。审核过的应用 ZIP 和校验文件作为独立 Release 资源上传。`.gitignore` 不会清理已跟踪文件或历史；发布与审核流程见 [docs/publishing.md](docs/publishing.md)。
