@@ -4,14 +4,12 @@ macOS 菜单栏灵动岛：把 AI 任务、音乐、计时、电源与设备状�
 
 > 源码和项目自定义图标采用 MIT License，见[素材清单](docs/assets.md)。普通用户可下载已签名、公证的 Apple silicon 预览版，运行无需 Xcode。
 
-源码已更新为 **1.1 多屏预览版**；下方下载附件仍是上一版，新的 1.1 安装包将在签名与公证验证完成后提供。
-
 ## 下载与安装（无需 Xcode）
 
-当前下载版为 **1.0 Apple silicon 预览版**（应用版本 1.0，build 1）：
+当前下载版为 **1.1 多屏预览版**（应用版本 1.1，build 2）：
 
-- **[下载应用 ZIP（arm64，约 3.7 MB）](https://github.com/OAKunO/DynamicIsland/releases/download/v1.0.0-preview.1/DynamicIsland-1.0-arm64.zip)**
-- [版本说明与 SHA-256 校验文件](https://github.com/OAKunO/DynamicIsland/releases/tag/v1.0.0-preview.1)
+- **[下载应用 ZIP（arm64，约 3.0 MB）](https://github.com/OAKunO/DynamicIsland/releases/download/v1.1.0-preview.1/DynamicIsland-1.1-arm64.zip)**
+- [版本说明与 SHA-256 校验文件](https://github.com/OAKunO/DynamicIsland/releases/tag/v1.1.0-preview.1)
 
 1. 下载 ZIP 并解压，打开其中的 `DynamicIsland` 文件夹。Release 页面自动生成的 `Source code` 是源码，不是预构建应用。
 2. 将 `DynamicIsland.app` 拖到旁边的 `Applications` 链接，或手动复制到「应用程序」。
@@ -24,7 +22,7 @@ macOS 菜单栏灵动岛：把 AI 任务、音乐、计时、电源与设备状�
 下载 ZIP 和对应的 `.sha256` 文件到同一目录后，可在 Terminal 校验：
 
 ```sh
-shasum -a 256 -c DynamicIsland-1.0-arm64.zip.sha256
+shasum -a 256 -c DynamicIsland-1.1-arm64.zip.sha256
 ```
 
 ## 功能

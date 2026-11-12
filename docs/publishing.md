@@ -2,6 +2,19 @@
 
 本文记录源码发布、下载版本与后续维护步骤。维护者已确认采用 MIT、版权署名 OAKunO，选择独立的干净源码快照，并于 2026-10-28 明确授权公开到 `OAKunO/DynamicIsland`。源码仓库已公开；当前新增已验证的预构建应用和下载说明。发布提交采用 GitHub 隐私署名，避免公开私人邮箱。项目未上架 Mac App Store。
 
+## 当前下载版：1.1 多屏预览版
+
+- Release：[v1.1.0-preview.1](https://github.com/OAKunO/DynamicIsland/releases/tag/v1.1.0-preview.1)，应用版本 **1.1（build 2）**，Apple silicon / arm64，Pre-release。
+- 安装包：`DynamicIsland-1.1-arm64.zip`（3,193,845 bytes）与同名 `.sha256` 文件。运行无需 Xcode、Python、Node 或项目源码。
+- 新增自动多屏检测、各屏独立展开与收起、无刘海屏幕中央纯黑留白，以及默认开启、可保存的副屏显示开关。详见[多屏说明](multi-display.md)。
+- 二进制对应公开源码 commit [`fe21713`](https://github.com/OAKunO/DynamicIsland/commit/fe21713c1dfb5991d7064241eb1c99812bd754ea)；Release tag 指向同一提交。之后的下载文档更新不改变已公证应用。
+- Developer ID Application 签名、Hardened Runtime、安全时间戳、Apple 公证、公证票据、Gatekeeper 和最终 ZIP 解压验证均通过。
+- ZIP SHA-256：`2f358beac9d0963dc500b7d19b37504b7ef6ae0b3682157aea53ce5a9aa99bf5`。
+- 完整项目测试、36 项多屏检查和 12 个离屏 UI 场景通过。未进行真实录屏；没有替换本机固定开发签名的安装版本。
+- 最低部署 macOS 26.5，已验证构建环境 macOS 27.0.1 / Xcode 27.2。另一台全新 Mac、最低系统、Intel、镜像显示和 Sidecar 的完整实机验收仍未完成。
+
+下面保留首次发布记录；当前下载入口以上方 1.1 版和 README 为准。
+
 ## 下载版本
 
 - 首个可下载预览版：[v1.0.0-preview.1](https://github.com/OAKunO/DynamicIsland/releases/tag/v1.0.0-preview.1)，应用版本 1.0（build 1），架构 arm64。
