@@ -2,6 +2,48 @@ import SwiftUI
 import AppKit
 import Combine
 
+/// Every display observes the same monitors, so additional screens never start
+/// another audio tap, task poller or device reader.
+final class IslandActivitySources: ObservableObject {
+    let audioPlayback: AudioPlaybackMonitor
+    let codexStatus: CodexStatusMonitor
+    let claudeStatus: ClaudeCodeStatusMonitor
+    let deepSeekStatus: DeepSeekHarnessStatusMonitor
+    let batteryStatus: BatteryStatusMonitor
+    let usbConnection: USBConnectionMonitor
+    let computerInformation: ComputerInformationMonitor
+    @Published var aiRotationIndex = 0
+    @Published var compactActivityOrder: [CompactActivity] = []
+    private var rotationTimer: AnyCancellable?
+    private var musicPageOwners = Set<UUID>()
+
+    func setMusicPageVisible(_ visible: Bool, owner: UUID) {
+        let wasVisible = !musicPageOwners.isEmpty
+        if visible { musicPageOwners.insert(owner) }
+        else { musicPageOwners.remove(owner) }
+        let isVisible = !musicPageOwners.isEmpty
+        if isVisible && !wasVisible { audioPlayback.expandMusicCard() }
+        else if !isVisible && wasVisible { audioPlayback.collapseMusicCard() }
+    }
+
+    init(previewConfiguration: IslandLengthConfiguration? = nil) {
+        audioPlayback = AudioPlaybackMonitor(previewConfiguration: previewConfiguration)
+        codexStatus = CodexStatusMonitor(previewTasks: previewConfiguration.map { IslandPreviewTasks.codex($0) },
+            previewExpanded: previewConfiguration?.mode == .expandedAgent)
+        claudeStatus = ClaudeCodeStatusMonitor(previewTasks: previewConfiguration.map { IslandPreviewTasks.claude($0) })
+        deepSeekStatus = DeepSeekHarnessStatusMonitor(previewTasks: previewConfiguration.map { IslandPreviewTasks.deepSeek($0) })
+        batteryStatus = BatteryStatusMonitor(previewConfiguration: previewConfiguration)
+        usbConnection = USBConnectionMonitor(previewConfiguration: previewConfiguration)
+        computerInformation = ComputerInformationMonitor(preview: previewConfiguration != nil)
+        if previewConfiguration == nil {
+            rotationTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect().sink { [weak self] _ in
+                guard let self else { return }
+                aiRotationIndex = (aiRotationIndex + 1) % 3_000
+            }
+        }
+    }
+}
+
 /// Intrinsic content stays attached to the protected edges as the shell grows.
 private struct CompactNotchLayout: Layout {
     let gap: CGFloat
@@ -65,30 +107,44 @@ struct ContentView: View {
     @ObservedObject private var lengthSettings = IslandLengthSettings.shared
     @ObservedObject private var displaySettings: IslandDisplaySettings
     @ObservedObject private var recorder = ScreenRecordingController.shared
+    @ObservedObject private var sources: IslandActivitySources
+    @ObservedObject private var windowLayout: IslandWindowLayout
+    @Environment(\.islandWindowMetrics) private var inheritedMetrics
+    private let hasWindowLayout: Bool
+    private var interaction: IslandInteractionState? { hasWindowLayout ? windowLayout.interaction : nil }
+    private var presentation: IslandPresentation { IslandPresentation(model: model, interaction: interaction) }
     private let honorsDisplaySettings: Bool
-    @State private var aiRotationIndex = 0
-    @State private var compactActivityOrder: [CompactActivity] = []
+    private var aiRotationIndex: Int { sources.aiRotationIndex }
+    private var compactActivityOrder: [CompactActivity] { sources.compactActivityOrder }
+    private var metrics: IslandWindowMetrics {
+        if hasWindowLayout { return windowLayout.metrics }
+        if previewConfiguration != nil, inheritedMetrics.notchCenterX != nil { return inheritedMetrics }
+        return IslandWindowMetrics(geometry: WindowManager.notchGeometry,
+            notchCenterX: WindowManager.windowNotchCenterX)
+    }
 
     private let previewConfiguration: IslandLengthConfiguration?
 
-    init(model: IslandModel, previewConfiguration: IslandLengthConfiguration? = nil, displaySettings: IslandDisplaySettings? = nil) {
+    init(model: IslandModel, previewConfiguration: IslandLengthConfiguration? = nil,
+         displaySettings: IslandDisplaySettings? = nil, sources: IslandActivitySources? = nil,
+         windowLayout: IslandWindowLayout? = nil) {
         self.model = model
         self.displaySettings = displaySettings ?? .shared
         honorsDisplaySettings = previewConfiguration == nil || displaySettings != nil
         self.previewConfiguration = previewConfiguration
-        _audioPlayback = StateObject(wrappedValue: AudioPlaybackMonitor(previewConfiguration: previewConfiguration))
-        _codexStatus = StateObject(wrappedValue: CodexStatusMonitor(
-            previewTasks: previewConfiguration.map { IslandPreviewTasks.codex($0) },
-            previewExpanded: previewConfiguration?.mode == .expandedAgent
-        ))
-        _claudeStatus = StateObject(wrappedValue: ClaudeCodeStatusMonitor(previewTasks: previewConfiguration.map { IslandPreviewTasks.claude($0) }))
-        _deepSeekStatus = StateObject(wrappedValue: DeepSeekHarnessStatusMonitor(previewTasks: previewConfiguration.map { IslandPreviewTasks.deepSeek($0) }))
-        _batteryStatus = StateObject(wrappedValue: BatteryStatusMonitor(previewConfiguration: previewConfiguration))
-        _usbConnection = StateObject(wrappedValue: USBConnectionMonitor(previewConfiguration: previewConfiguration))
-        _computerInformation = StateObject(wrappedValue: ComputerInformationMonitor(preview: previewConfiguration != nil))
+        let sources = sources ?? IslandActivitySources(previewConfiguration: previewConfiguration)
+        self.sources = sources
+        hasWindowLayout = windowLayout != nil
+        self.windowLayout = windowLayout ?? IslandWindowLayout(window: nil,
+            display: IslandDisplay(id: 0, frame: .zero, geometry: WindowManager.notchGeometry))
+        _audioPlayback = StateObject(wrappedValue: sources.audioPlayback)
+        _codexStatus = StateObject(wrappedValue: sources.codexStatus)
+        _claudeStatus = StateObject(wrappedValue: sources.claudeStatus)
+        _deepSeekStatus = StateObject(wrappedValue: sources.deepSeekStatus)
+        _batteryStatus = StateObject(wrappedValue: sources.batteryStatus)
+        _usbConnection = StateObject(wrappedValue: sources.usbConnection)
+        _computerInformation = StateObject(wrappedValue: sources.computerInformation)
     }
-
-    private let aiRotationTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private var displaySnapshot: IslandDisplaySettingsSnapshot {
         let base: IslandDisplaySettingsSnapshot = honorsDisplaySettings ? displaySettings.snapshot : .init()
@@ -106,7 +162,8 @@ struct ContentView: View {
     private var isAIVisible: Bool { !availableAIProviders.isEmpty }
 
     private var isAnyExpanded: Bool {
-        model.isExpanded || (displaySnapshot.isEnabled(.music) && audioPlayback.isExpanded)
+        if let interaction { return interaction.isExpanded || model.isPersistentAlertVisible }
+        return model.isExpanded || (displaySnapshot.isEnabled(.music) && audioPlayback.isExpanded)
             || (displaySnapshot.isEnabled(.codex) && codexStatus.isExpanded)
     }
 
@@ -142,7 +199,8 @@ struct ContentView: View {
                                 includesComputer: previewConfiguration?.computer ?? true,
                                 includesNotes: previewConfiguration?.showsNotes ?? true,
                                 displaySnapshot: displaySnapshot,
-                                usesWindowLayout: previewConfiguration == nil
+                                usesWindowLayout: previewConfiguration == nil,
+                                sources: sources
                             )
                             .transition(.islandContent)
                         } else {
@@ -155,14 +213,14 @@ struct ContentView: View {
                 // 页面只在同一个灵动岛外壳内移动。不能让每一页各自携带
                 // 矩形背景，否则缩放/横移时会在四角露出方形边缘。
                 .clipShape(IslandShape())
-                .mask(NotchContentMask(geometry: WindowManager.notchGeometry, notchCenterX: WindowManager.windowNotchCenterX).fill(style: FillStyle(eoFill: true)))
+                .mask(NotchContentMask(geometry: metrics.geometry, notchCenterX: metrics.notchCenterX).fill(style: FillStyle(eoFill: true)))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
             .overlay {
                 if !isAnyExpanded && lengthSettings.previewState == nil && previewConfiguration == nil {
                     Button {
-                        model.isExpanded = true
+                        presentation.isExpanded = true
                     } label: {
                         Color.clear.contentShape(Rectangle())
                     }
@@ -186,7 +244,7 @@ struct ContentView: View {
                     .padding(.top, 2)
                     .padding(.trailing, 14)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .mask(NotchContentMask(geometry: WindowManager.notchGeometry, notchCenterX: WindowManager.windowNotchCenterX).fill(style: FillStyle(eoFill: true)))
+                    .mask(NotchContentMask(geometry: metrics.geometry, notchCenterX: metrics.notchCenterX).fill(style: FillStyle(eoFill: true)))
                 }
             }
             .overlay {
@@ -195,14 +253,14 @@ struct ContentView: View {
                         .overlay {
                             Image(systemName: "lock.fill").foregroundStyle(.gray)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .mask(NotchContentMask(geometry: WindowManager.notchGeometry, notchCenterX: WindowManager.windowNotchCenterX).fill(style: FillStyle(eoFill: true)))
+                                .mask(NotchContentMask(geometry: metrics.geometry, notchCenterX: metrics.notchCenterX).fill(style: FillStyle(eoFill: true)))
                         }
                         .allowsHitTesting(true)
                 }
             }
             .accessibilityHidden(!model.isSessionUnlocked)
             .transaction { if !model.isSessionUnlocked { $0.animation = nil } }
-            .animation(IslandMotion.container, value: model.isExpanded)
+            .animation(IslandMotion.container, value: isAnyExpanded)
             .animation(IslandMotion.container, value: audioPlayback.isExpanded)
             .animation(IslandMotion.container, value: codexStatus.isExpanded)
             .animation(IslandMotion.content, value: audioPlayback.isPlaying)
@@ -213,9 +271,10 @@ struct ContentView: View {
             .animation(IslandMotion.content, value: badgeOnlyProviders)
             .animation(IslandMotion.content, value: compactLayout)
             .onChange(of: visibleCompactActivities, initial: true) { _, visible in
-                compactActivityOrder = CompactActivityLayout(
+                let next = CompactActivityLayout(
                     visible: visible, previousOrder: compactActivityOrder
                 ).orderedActivities
+                if sources.compactActivityOrder != next { sources.compactActivityOrder = next }
             }
             .onChange(of: displaySnapshot) { _, visibility in
                 if !visibility.isEnabled(.unlockGreeting) { model.dismissUnlockGreeting() }
@@ -223,13 +282,16 @@ struct ContentView: View {
             .animation(IslandMotion.content, value: batteryStatus.isVisible)
             .animation(IslandMotion.content, value: usbConnection.device)
             .animation(IslandMotion.content, value: usbConnection.phone)
-            .onReceive(aiRotationTimer) { _ in
-                if availableAIProviders.count > 2 || pinnedAIProviders.count == 1 {
-                    aiRotationIndex = (aiRotationIndex + 1) % 3_000
-                }
-            }
             .animation(IslandMotion.container, value: lengthSettings.previewState?.key)
             .environment(\.colorScheme, .dark)
+            .environment(\.islandWindowMetrics, metrics)
+            .environment(\.islandInteraction, interaction)
+            .onChange(of: model.isSessionUnlocked) { _, unlocked in
+                if !unlocked {
+                    interaction?.collapse()
+                    interaction?.isHovered = false
+                }
+            }
             .alert("录屏提示", isPresented: Binding(get: { recorder.errorMessage != nil },
                                                  set: { if !$0 { recorder.errorMessage = nil } })) {
                 Button("知道了") { recorder.errorMessage = nil }
@@ -244,7 +306,8 @@ struct ContentView: View {
                         claudeStatus: claudeStatus,
                         deepSeekStatus: deepSeekStatus,
                         batteryStatus: batteryStatus,
-                        usbConnection: usbConnection
+                        usbConnection: usbConnection,
+                        interaction: interaction
                     )
                 }
             }
@@ -273,10 +336,10 @@ struct ContentView: View {
             model: model, notes: model.notes, audioPlayback: audioPlayback,
             codexStatus: codexStatus, claudeStatus: claudeStatus, deepSeekStatus: deepSeekStatus,
             batteryStatus: batteryStatus, usbConnection: usbConnection, recorder: recorder,
-            visibility: displaySnapshot)
+            visibility: displaySnapshot, interaction: interaction)
         let key = configuration.key
-        return CompactNotchLayout(gap: WindowManager.notchGeometry.protectedWidth,
-                                  notchCenterX: WindowManager.windowNotchCenterX) {
+        return CompactNotchLayout(gap: metrics.geometry.protectedWidth,
+                                  notchCenterX: metrics.notchCenterX) {
             compactLane(.left)
                 .background {
                     GeometryReader { proxy in
@@ -293,7 +356,7 @@ struct ContentView: View {
                 }
         }
         .padding(.horizontal, IslandCompactMetrics.outerPadding)
-        .frame(height: WindowManager.compactHeight)
+        .frame(height: metrics.geometry.compactHeight)
         .foregroundStyle(.white)
         .onPreferenceChange(CompactContentPreferenceKey.self) { value in
             guard let left = value.left, let right = value.right else { return }
@@ -870,6 +933,9 @@ private struct DashedIslandDivider: View {
 }
 
 private struct ExpandedIslandDashboard: View {
+    @Environment(\.islandInteraction) private var interaction
+    private var presentation: IslandPresentation { IslandPresentation(model: model, interaction: interaction) }
+    @Environment(\.islandWindowMetrics) private var windowMetrics
     @ObservedObject var model: IslandModel
     @ObservedObject var audioPlayback: AudioPlaybackMonitor
     @ObservedObject var codexStatus: CodexStatusMonitor
@@ -883,6 +949,8 @@ private struct ExpandedIslandDashboard: View {
     @ObservedObject private var lengthSettings = IslandLengthSettings.shared
     var displaySnapshot = IslandDisplaySettingsSnapshot()
     var usesWindowLayout = true
+    var sources: IslandActivitySources? = nil
+    @State private var musicPageOwner = UUID()
 
     private var taskCount: Int {
         (displaySnapshot.isEnabled(.codex) ? codexStatus.tasks.count : 0)
@@ -904,10 +972,11 @@ private struct ExpandedIslandDashboard: View {
     }
     private var layout: IslandExpandedLayout {
         IslandExpandedLayout(configuration: configuration,
-            maximumWidth: usesWindowLayout ? WindowManager.currentExpandedWidthLimit : 1_000)
+            maximumWidth: usesWindowLayout ? windowMetrics.expandedWidthLimit : 1_000)
     }
     private var workspaceWidth: CGFloat {
-        CGFloat(lengthSettings.width(for: IslandLengthState(configuration: configuration)))
+        CGFloat(lengthSettings.width(for: IslandLengthState(configuration: configuration),
+            geometry: windowMetrics.geometry, screenWidth: windowMetrics.screenWidth))
     }
 
     var body: some View {
@@ -920,7 +989,16 @@ private struct ExpandedIslandDashboard: View {
                 ForEach(layout.groups) { group in
                     if group.id != layout.groups.first?.id { DashedIslandDivider() }
                     ExpandedIslandGroup(group: group,
-                                        width: group.width + (group.id == flexibleGroup ? extraWidth : 0), model: model) { column, height in
+                                        width: group.width + (group.id == flexibleGroup ? extraWidth : 0), model: model,
+                                        onSelectionChange: { previous, selected in
+                        if let sources {
+                            if selected == .music { sources.setMusicPageVisible(true, owner: musicPageOwner) }
+                            else if previous == .music { sources.setMusicPageVisible(false, owner: musicPageOwner) }
+                        } else {
+                            if selected == .music { audioPlayback.expandMusicCard() }
+                            else if previous == .music { audioPlayback.collapseMusicCard() }
+                        }
+                    }) { column, height in
                         columnContent(column, height: height)
                     }
                 }
@@ -932,8 +1010,8 @@ private struct ExpandedIslandDashboard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onDisappear {
-            model.isPomodoroSettingsPresented = false
-            model.isRecordingSettingsPresented = false
+            presentation.isPomodoroSettingsPresented = false
+            presentation.isRecordingSettingsPresented = false
         }
     }
 

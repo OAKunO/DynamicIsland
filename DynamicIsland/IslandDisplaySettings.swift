@@ -2,9 +2,9 @@ import Combine
 import Foundation
 
 nonisolated enum IslandDisplayFeature: String, CaseIterable, Identifiable, Sendable {
-    case codex, deepSeek, claude, music, timer, pomodoro, alarm, battery, usb, computer, recording, notes, unlockGreeting
-    static var displayFeatures: [Self] { allCases.filter { $0 != .unlockGreeting } }
-    static var functionFeatures: [Self] { [.unlockGreeting] }
+    case codex, deepSeek, claude, music, timer, pomodoro, alarm, battery, usb, computer, recording, notes, unlockGreeting, secondaryDisplays
+    static var displayFeatures: [Self] { allCases.filter { !functionFeatures.contains($0) } }
+    static var functionFeatures: [Self] { [.secondaryDisplays, .unlockGreeting] }
     var id: Self { self }
     var title: String {
         switch self {
@@ -21,6 +21,7 @@ nonisolated enum IslandDisplayFeature: String, CaseIterable, Identifiable, Senda
         case .computer: "本机信息"
         case .notes: "备忘录与待办"
         case .unlockGreeting: "解锁问候"
+        case .secondaryDisplays: "副屏显示灵动岛"
         }
     }
     var detail: String {
@@ -36,6 +37,7 @@ nonisolated enum IslandDisplayFeature: String, CaseIterable, Identifiable, Senda
         case .computer: "展开后显示电脑电量、系统、存储与硬件详情"
         case .notes: "展开时查看置顶与待办，解锁后显示简短摘要"
         case .unlockGreeting: "解锁屏幕时显示“早上好”等问候卡片"
+        case .secondaryDisplays: "默认在所有屏幕显示；关闭后仅在系统主屏显示"
         }
     }
     var symbol: String {
@@ -52,6 +54,7 @@ nonisolated enum IslandDisplayFeature: String, CaseIterable, Identifiable, Senda
         case .computer: "laptopcomputer"
         case .notes: "note.text"
         case .unlockGreeting: "sun.horizon.fill"
+        case .secondaryDisplays: "display.2"
         }
     }
 }

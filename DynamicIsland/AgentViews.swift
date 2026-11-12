@@ -56,12 +56,18 @@ private enum AIExpandedTaskRow: Identifiable {
 }
 
 struct AIExpandedCard: View {
+    @Environment(\.islandInteraction) private var interaction
     @ObservedObject var codexStatus: CodexStatusMonitor
     @ObservedObject var claudeStatus: ClaudeCodeStatusMonitor
     @ObservedObject var deepSeekStatus: DeepSeekHarnessStatusMonitor
     @State private var selectedProvider: IslandAgentProvider?
 
     var displaySnapshot = IslandDisplaySettingsSnapshot()
+
+    private func collapsePanel() {
+        if let interaction { interaction.collapse() }
+        else { codexStatus.isExpanded = false }
+    }
 
     private var activeTaskCount: Int {
         visibleTaskRows.filter(\.isWorking).count
@@ -145,7 +151,7 @@ struct AIExpandedCard: View {
                 Spacer()
                 if showsProvider(.deepSeek) {
                     Button("打开 DeepSeek") {
-                        codexStatus.isExpanded = false
+                        collapsePanel()
                         deepSeekStatus.openDeepSeekHarness()
                     }
                     .buttonStyle(.plain)
@@ -156,7 +162,7 @@ struct AIExpandedCard: View {
                 }
                 if showsProvider(.claude) {
                     Button("打开 Claude") {
-                        codexStatus.isExpanded = false
+                        collapsePanel()
                         claudeStatus.openClaudeCode()
                     }
                     .buttonStyle(.plain)
@@ -167,7 +173,7 @@ struct AIExpandedCard: View {
                 }
                 if showsProvider(.codex) {
                     Button("打开 Codex") {
-                        codexStatus.isExpanded = false
+                        collapsePanel()
                         codexStatus.openCodex()
                     }
                         .buttonStyle(.plain)

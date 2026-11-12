@@ -8,6 +8,7 @@ struct IslandNotchUIRender {
         let bitmap: NSBitmapImageRep
         let notchCenterX: CGFloat
         let frame: CGRect
+        let geometry: IslandNotchGeometry
     }
 
     @MainActor static func main() throws {
@@ -115,7 +116,8 @@ struct IslandNotchUIRender {
             throw Failure(message: "Could not save \(name)")
         }
         try png.write(to: output.appendingPathComponent("\(name).png"))
-        return Capture(bitmap: bitmap, notchCenterX: WindowManager.windowNotchCenterX!, frame: window.frame)
+        return Capture(bitmap: bitmap, notchCenterX: WindowManager.windowNotchCenterX!, frame: window.frame,
+                       geometry: WindowManager.notchGeometry)
     }
 
     static func rgb(_ bitmap: NSBitmapImageRep, _ x: Int, _ y: Int) -> [CGFloat] {
@@ -127,9 +129,12 @@ struct IslandNotchUIRender {
         let bitmap = capture.bitmap
         let scale = CGFloat(bitmap.pixelsWide) / bitmap.size.width
         let middle = Int(capture.notchCenterX * scale)
-        let half = Int(WindowManager.notchGeometry.protectedWidth * scale / 2)
-        for x in (middle - half + 1)..<(middle + half - 1) {
-            for y in 2..<min(Int(WindowManager.notchGeometry.height * scale) - 2, bitmap.pixelsHigh - 2) {
+        let half = Int(capture.geometry.protectedWidth * scale / 2)
+        let left = max(0, middle - half + 1), right = min(bitmap.pixelsWide, middle + half - 1)
+        let bottom = min(Int(capture.geometry.height * scale) - 2, bitmap.pixelsHigh - 2)
+        guard right > left, bottom > 2 else { return }
+        for x in left..<right {
+            for y in 2..<bottom {
                 if rgb(bitmap, x, y).contains(where: { $0 > 0.25 }) {
                     throw Failure(message: "Content entered the protected zone in \(name) at \(x),\(y)")
                 }

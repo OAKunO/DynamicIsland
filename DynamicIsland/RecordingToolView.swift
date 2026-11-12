@@ -38,9 +38,11 @@ struct RecordingStatusDot: View {
 
 struct RecordingToolView: View {
     @ObservedObject var model: IslandModel
+    @Environment(\.islandInteraction) private var interaction
+    private var presentation: IslandPresentation { IslandPresentation(model: model, interaction: interaction) }
     @ObservedObject private var recorder = ScreenRecordingController.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var showsSettings: Bool { model.isRecordingSettingsPresented }
+    private var showsSettings: Bool { presentation.isRecordingSettingsPresented }
     private var settingsAnimation: Animation { .easeInOut(duration: reduceMotion ? 0.1 : 0.3) }
 
     var body: some View {
@@ -56,7 +58,7 @@ struct RecordingToolView: View {
                         .frame(width: 1, height: max(0, geometry.size.height - 8))
                         .accessibilityHidden(true)
                     RecordingOptionsView(settings: recorder.settings, compact: true, isDisabled: recorder.isBusy) {
-                        withAnimation(IslandMotion.container) { model.isRecordingSettingsPresented = false }
+                        withAnimation(IslandMotion.container) { presentation.isRecordingSettingsPresented = false }
                     }
                     .frame(width: settingsWidth, height: geometry.size.height)
                     .foregroundStyle(.white)
@@ -72,15 +74,15 @@ struct RecordingToolView: View {
                 if recorder.phase == .idle {
                     RecordingStartControl(progress: showsSettings ? 1 : 0,
                                           panelSize: geometry.size, settingsWidth: settingsWidth) {
-                        model.isRecordingSettingsPresented = false
-                        model.isExpanded = false
+                        presentation.isRecordingSettingsPresented = false
+                        presentation.isExpanded = false
                         recorder.start()
                     }
                     .animation(settingsAnimation, value: showsSettings)
                 }
             }
         }
-        .onDisappear { model.isRecordingSettingsPresented = false }
+        .onDisappear { presentation.isRecordingSettingsPresented = false }
     }
 
     private func controls(compact: Bool, isNarrow: Bool) -> some View {
@@ -140,12 +142,12 @@ struct RecordingToolView: View {
         // 始终保留同一个手势，并让设置按钮位于手势区域上层。
         .simultaneousGesture(TapGesture().onEnded {
             guard compact else { return }
-            withAnimation(IslandMotion.container) { model.isRecordingSettingsPresented = false }
+            withAnimation(IslandMotion.container) { presentation.isRecordingSettingsPresented = false }
         })
         .overlay(alignment: .topTrailing) {
             if !compact {
                 Button {
-                    withAnimation(IslandMotion.container) { model.isRecordingSettingsPresented = true }
+                    withAnimation(IslandMotion.container) { presentation.isRecordingSettingsPresented = true }
                 } label: {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 12, weight: .medium))

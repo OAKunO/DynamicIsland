@@ -91,7 +91,7 @@ struct IslandSettingsView: View {
             destinationCard(title: "展示内容", detail: "选择 AI Agent、音乐、时间工具和设备状态的显示内容。",
                             symbol: "eye", color: .blue, page: .content,
                             summary: "已开启 \(displaySettings.enabledDisplayCount) / \(IslandDisplayFeature.displayFeatures.count) 项")
-            destinationCard(title: "功能开关", detail: "管理解锁问候等自动功能，按你的习惯选择开启或关闭。",
+            destinationCard(title: "功能开关", detail: "管理副屏显示、解锁问候等功能，按你的习惯选择开启或关闭。",
                             symbol: "switch.2", color: .orange, page: .functions,
                             summary: "已开启 \(displaySettings.enabledFunctionCount) / \(IslandDisplayFeature.functionFeatures.count) 项")
             destinationCard(title: "录屏设置", detail: "设置录制范围、声音、倒计时、状态显示与保存位置。",
@@ -161,11 +161,11 @@ struct IslandSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("按需开启自动功能")
                     .font(.system(size: 16, weight: .semibold))
-                Text("更改立即生效，并自动保存。关闭解锁问候后，解锁屏幕时不再自动弹出问候卡片。")
+                Text("更改立即生效，并自动保存。副屏显示默认开启，关闭后仅在系统主屏显示；关闭解锁问候后，解锁时不再自动弹出问候卡片。")
                     .font(.system(size: 11)).foregroundStyle(ink.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            featureGroup("问候", features: IslandDisplayFeature.functionFeatures, isFunction: true)
+            featureGroup("显示与问候", features: IslandDisplayFeature.functionFeatures, isFunction: true)
         }
         .foregroundStyle(ink)
     }

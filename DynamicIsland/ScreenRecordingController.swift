@@ -165,8 +165,8 @@ final class ScreenRecordingController: NSObject, ObservableObject, SCStreamDeleg
         let scale: CGFloat
         switch target {
         case let .display(display, region):
-            let islandID = WindowManager.window.map { CGWindowID($0.windowNumber) }
-            let excluded = configuration.includesIsland ? [] : content.windows.filter { $0.windowID == islandID }
+            let islandIDs = Set(WindowManager.windows.map { CGWindowID($0.windowNumber) })
+            let excluded = configuration.includesIsland ? [] : content.windows.filter { islandIDs.contains($0.windowID) }
             filter = SCContentFilter(display: display, excludingWindows: excluded)
             size = region?.size ?? display.frame.size
             scale = NSScreen.screens.first { $0.recordingDisplayID == display.displayID }?.backingScaleFactor ?? 2

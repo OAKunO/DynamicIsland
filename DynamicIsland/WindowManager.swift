@@ -1,6 +1,98 @@
 import AppKit
 import QuartzCore
 import os
+import SwiftUI
+import Combine
+import Observation
+
+/// Presentation belongs to a panel; playback, timers and task data stay shared.
+@Observable final class IslandInteractionState {
+    var isExpanded = false
+    var isHovered = false
+    var isTimeToolPopoverPresented = false
+    var isPomodoroSettingsPresented = false
+    var isRecordingSettingsPresented = false
+
+    func collapse() {
+        isExpanded = false
+        isTimeToolPopoverPresented = false
+        isPomodoroSettingsPresented = false
+        isRecordingSettingsPresented = false
+    }
+}
+
+private struct IslandInteractionKey: EnvironmentKey {
+    static let defaultValue: IslandInteractionState? = nil
+}
+
+/// A stable display assignment, independent of which screen currently owns focus.
+nonisolated struct IslandDisplay: Equatable, Sendable {
+    let id: CGDirectDisplayID
+    let frame: CGRect
+    let geometry: IslandNotchGeometry
+    let notchCenterX: CGFloat
+    /// Unobstructed screens keep a visual black center like the built-in island.
+    var islandGeometry: IslandNotchGeometry { geometry.width > 0 ? geometry : .externalIsland }
+
+    @MainActor init(screen: NSScreen) {
+        id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as! NSNumber).uint32Value
+        frame = screen.frame
+        geometry = IslandNotchGeometry(screen: screen)
+        if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            notchCenterX = (left.maxX + right.minX) / 2
+        } else {
+            notchCenterX = screen.frame.midX
+        }
+    }
+
+    init(id: CGDirectDisplayID, frame: CGRect, geometry: IslandNotchGeometry, notchCenterX: CGFloat? = nil) {
+        self.id = id
+        self.frame = frame
+        self.geometry = geometry
+        self.notchCenterX = notchCenterX ?? frame.midX
+    }
+}
+
+nonisolated struct IslandWindowMetrics: Equatable, Sendable {
+    var geometry = IslandNotchGeometry.fallback
+    var notchCenterX: CGFloat?
+    var screenWidth: CGFloat = 1_440
+    var expandedWidthLimit: CGFloat { WindowManager.expandedWidthLimit(screenWidth: screenWidth) }
+}
+
+private struct IslandWindowMetricsKey: EnvironmentKey {
+    static let defaultValue = IslandWindowMetrics()
+}
+
+extension EnvironmentValues {
+    var islandInteraction: IslandInteractionState? {
+        get { self[IslandInteractionKey.self] }
+        set { self[IslandInteractionKey.self] = newValue }
+    }
+
+    var islandWindowMetrics: IslandWindowMetrics {
+        get { self[IslandWindowMetricsKey.self] }
+        set { self[IslandWindowMetricsKey.self] = newValue }
+    }
+}
+
+final class IslandWindowLayout: ObservableObject {
+    let interaction = IslandInteractionState()
+    @Published fileprivate(set) var metrics: IslandWindowMetrics
+    fileprivate weak var window: NSWindow?
+    fileprivate var display: IslandDisplay
+    fileprivate var configuration = IslandLengthConfiguration()
+    fileprivate var targetFrame: CGRect?
+    fileprivate var frameMode: IslandLengthMode = .compact
+    fileprivate var observers: [NSObjectProtocol] = []
+    fileprivate var geometryNotificationPending = false
+
+    init(window: NSWindow?, display: IslandDisplay) {
+        self.window = window
+        self.display = display
+        metrics = IslandWindowMetrics(geometry: display.islandGeometry, screenWidth: display.frame.width)
+    }
+}
 
 final class WindowManager {
 
@@ -27,15 +119,15 @@ final class WindowManager {
     // 岛的基础尺寸（收起 / 悬停 / 展开卡片）
     nonisolated private static let geometryStorage = OSAllocatedUnfairLock(initialState: IslandNotchGeometry.fallback)
     nonisolated private static let compactMeasurements = OSAllocatedUnfairLock(initialState: [String: IslandCompactContentSize]())
-    nonisolated private static let notchOffsetStorage = OSAllocatedUnfairLock(initialState: CGFloat?.none)
     nonisolated static var notchGeometry: IslandNotchGeometry { geometryStorage.withLock { $0 } }
-    nonisolated static var windowNotchCenterX: CGFloat? { notchOffsetStorage.withLock { $0 } }
+    static var windowNotchCenterX: CGFloat? { primaryLayout?.metrics.notchCenterX }
     nonisolated static func compactContent(for configuration: IslandLengthConfiguration) -> IslandCompactContentSize? {
         compactMeasurements.withLock { $0[configuration.key] }
     }
     nonisolated static var compactHeight: CGFloat { notchGeometry.compactHeight }
     nonisolated static var collapsedSize: CGSize { CGSize(width: notchGeometry.idleWidth, height: compactHeight) }
     nonisolated static var hoveredSize: CGSize {
+        // Hover feedback is local to each display.
         CGSize(width: collapsedSize.width + 40, height: compactHeight)
     }
     nonisolated static let expandedSize = CGSize(width: 344, height: 256)
@@ -50,18 +142,17 @@ final class WindowManager {
         max(workColumnWidth, min(1_000, floor(screenWidth * 0.85), screenWidth - 48))
     }
     static var currentExpandedWidthLimit: CGFloat {
-        expandedWidthLimit(screenWidth: (window?.screen ?? NSScreen.main)?.frame.width ?? 1_440)
+        primaryLayout?.metrics.expandedWidthLimit ?? expandedWidthLimit(screenWidth: 1_440)
     }
-    // Keep the single island panel and its last animation target.
-    static private(set) var window: NSWindow?
-    private static var currentConfiguration = IslandLengthConfiguration()
-    private static var currentTargetSize = collapsedSize
-    private static var currentTargetFrame: CGRect?
-    private static var currentFrameMode: IslandLengthMode = .compact
+    private static var layouts: [IslandWindowLayout] = []
+    private static var primaryLayout: IslandWindowLayout? { layouts.first { $0.window != nil } }
+    static var windows: [NSWindow] { layouts.compactMap(\.window) }
+    /// Keyboard actions belong to the focused island, or the one under the pointer.
+    static var window: NSWindow? {
+        if let key = NSApp?.keyWindow, windows.contains(where: { $0 === key }) { return key }
+        return windows.first { $0.isVisible && $0.frame.contains(NSEvent.mouseLocation) } ?? primaryLayout?.window
+    }
     private static var userWantsWindowVisible = true
-    private static var screenObserver: NSObjectProtocol?
-    private static var windowObservers: [NSObjectProtocol] = []
-    private static var windowGeometryNotificationPending = false
 
     static func reportCompactContent(_ content: IslandCompactContentSize, stateKey: String) {
         let changed = compactMeasurements.withLock { values in
@@ -72,37 +163,33 @@ final class WindowManager {
         }
         guard changed else { return }
         IslandLengthSettings.shared.geometryDidChange()
-        guard !currentConfiguration.mode.isExpanded, currentConfiguration.key == stateKey,
-              let window else { return }
-        updateForState(configuration: currentConfiguration, window: window)
+        for layout in layouts where !layout.configuration.mode.isExpanded && layout.configuration.key == stateKey {
+            updateForState(configuration: layout.configuration, window: layout.window)
+        }
     }
 
-    private static func physicalNotchCenter(on screen: NSScreen) -> CGFloat {
-        if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-            return (left.maxX + right.minX) / 2
-        }
-        return screen.frame.midX
+    static func layout(for window: NSWindow) -> IslandWindowLayout? {
+        layouts.first { $0.window === window }
     }
 
-    private static func refreshWindowGeometry() {
-        guard let window, let screen = window.screen ?? NSScreen.main else { return }
-        let offset = physicalNotchCenter(on: screen) - window.frame.minX
-        let changed = notchOffsetStorage.withLock { current in
-            guard current == nil || abs(current! - offset) > 0.01 else { return false }
-            current = offset
-            return true
-        }
-        guard changed, !windowGeometryNotificationPending else { return }
-        windowGeometryNotificationPending = true
-        DispatchQueue.main.async {
-            windowGeometryNotificationPending = false
-            IslandLengthSettings.shared.windowGeometryDidChange()
+    private static func refreshWindowGeometry(_ layout: IslandWindowLayout) {
+        guard let window = layout.window else { return }
+        let next = IslandWindowMetrics(geometry: layout.display.islandGeometry,
+            notchCenterX: layout.display.notchCenterX - window.frame.minX, screenWidth: layout.display.frame.width)
+        guard next != layout.metrics, !layout.geometryNotificationPending else { return }
+        // AppKit can resize while SwiftUI is updating the representable.
+        layout.geometryNotificationPending = true
+        DispatchQueue.main.async { [weak layout] in
+            guard let layout, let window = layout.window else { return }
+            layout.geometryNotificationPending = false
+            layout.metrics = IslandWindowMetrics(geometry: layout.display.islandGeometry,
+                notchCenterX: layout.display.notchCenterX - window.frame.minX, screenWidth: layout.display.frame.width)
+            if layout === primaryLayout { IslandLengthSettings.shared.windowGeometryDidChange() }
         }
     }
 
     static func refreshScreenGeometry() {
-        guard let screen = window?.screen ?? NSScreen.main else { return }
-        let next = IslandNotchGeometry(screen: screen)
+        guard let next = primaryLayout?.display.islandGeometry else { return }
         let changed = geometryStorage.withLock { value in
             guard value != next else { return false }
             value = next
@@ -113,26 +200,20 @@ final class WindowManager {
         }
     }
 
-    static func configure(window: NSWindow?) {
-        guard let window else { return }
-        Self.window = window
-        windowObservers.forEach(NotificationCenter.default.removeObserver)
-        windowObservers = [NSWindow.didMoveNotification, NSWindow.didResizeNotification].map { name in
+    @discardableResult static func configure(window: NSWindow?, display: IslandDisplay? = nil) -> IslandWindowLayout? {
+        guard let window, let display = display ?? NSScreen.screens.first.map(IslandDisplay.init(screen:)) else { return nil }
+        if let existing = layout(for: window) { return existing }
+        let layout = IslandWindowLayout(window: window, display: display)
+        layouts.append(layout)
+        layout.observers = [NSWindow.didMoveNotification, NSWindow.didResizeNotification].map { name in
             NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { _ in
-                MainActor.assumeIsolated { refreshWindowGeometry() }
+                MainActor.assumeIsolated { refreshWindowGeometry(layout) }
             }
         }
         refreshScreenGeometry()
-        if screenObserver == nil {
-            screenObserver = NotificationCenter.default.addObserver(
-                forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
-            ) { _ in
-                Task { @MainActor in
-                    refreshScreenGeometry()
-                    if let window = Self.window { position(window: window) }
-                }
-            }
-        }
+        layout.observers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { _ in MainActor.assumeIsolated { unregister(window: window) } })
 
         // 无标题栏
         window.titleVisibility = .hidden
@@ -160,10 +241,29 @@ final class WindowManager {
         ]
 
         // 灵动岛初始尺寸 = 收起状态
-        window.setContentSize(collapsedSize)
-        currentConfiguration = IslandLengthConfiguration()
-        currentTargetSize = collapsedSize
+        window.setContentSize(defaultSize(for: .init(), geometry: display.islandGeometry))
 
+        position(window: window)
+        return layout
+    }
+
+    static func unregister(window: NSWindow) {
+        guard let layout = layout(for: window) else { return }
+        layout.interaction.collapse()
+        layout.interaction.isHovered = false
+        layout.observers.forEach(NotificationCenter.default.removeObserver)
+        layout.observers.removeAll()
+        layouts.removeAll { $0 === layout }
+        layout.window = nil
+        refreshScreenGeometry()
+    }
+
+    static func updateDisplay(_ display: IslandDisplay, for window: NSWindow) {
+        guard let layout = layout(for: window) else { return }
+        layout.display = display
+        layout.targetFrame = nil
+        refreshScreenGeometry()
+        updateForState(configuration: layout.configuration, window: window, animated: false)
         position(window: window)
     }
 
@@ -189,7 +289,9 @@ final class WindowManager {
     }
 
     /// The catalog and the actual island use exactly the same default geometry.
-    nonisolated static func defaultSize(for configuration: IslandLengthConfiguration) -> CGSize {
+    nonisolated static func defaultSize(for configuration: IslandLengthConfiguration, geometry: IslandNotchGeometry? = nil) -> CGSize {
+        let notchGeometry = geometry ?? Self.notchGeometry
+        let compactHeight = notchGeometry.compactHeight
         if configuration.mode.isExpanded {
             if configuration.mode == .expandedGreeting {
                 return CGSize(width: max(greetingExpandedSize.width, notchGeometry.minimumExpandedWidth),
@@ -203,7 +305,7 @@ final class WindowManager {
         }
         if configuration.mode == .hovered, configuration.orderedAgents.isEmpty,
            configuration.compactActivities.isEmpty {
-            return hoveredSize
+            return CGSize(width: notchGeometry.idleWidth + 40, height: compactHeight)
         }
         return CGSize(width: compactContent(for: configuration)?.width(geometry: notchGeometry)
                         ?? IslandCompactMetrics.width(for: configuration, geometry: notchGeometry),
@@ -241,10 +343,12 @@ final class WindowManager {
 
     static func updateForState(
         configuration: IslandLengthConfiguration,
-        window: NSWindow?
+        window: NSWindow?,
+        animated: Bool = true
     ) {
-        guard let window else { return }
-        refreshScreenGeometry()
+        guard let window, let layout = layout(for: window) else { return }
+        let geometry = layout.display.islandGeometry
+        let screenWidth = layout.display.frame.width
         let settings = IslandLengthSettings.shared
         let liveState = IslandLengthState(configuration: configuration)
         if settings.currentState != liveState {
@@ -252,16 +356,16 @@ final class WindowManager {
         }
         let configuration = settings.previewState?.configuration ?? configuration
         let state = IslandLengthState(configuration: configuration)
-        currentConfiguration = configuration
+        layout.configuration = configuration
         let content = compactContent(for: configuration)
         // Wait for the current view's intrinsic measurement instead of briefly
         // expanding to a worst-case estimate before tightening a second time.
         if !configuration.mode.isExpanded && content == nil { return }
-        let base = defaultSize(for: configuration)
+        let base = defaultSize(for: configuration, geometry: geometry)
         let isDashboard = configuration.mode.isExpanded && configuration.mode != .expandedGreeting &&
             configuration.mode != .expandedTimerFinished
         let height = isDashboard
-            ? IslandExpandedLayout(configuration: configuration, maximumWidth: currentExpandedWidthLimit).height
+            ? IslandExpandedLayout(configuration: configuration, maximumWidth: expandedWidthLimit(screenWidth: screenWidth)).height
             : base.height
         let width: CGFloat
         if !configuration.mode.isExpanded, content != nil,
@@ -269,16 +373,21 @@ final class WindowManager {
            settings.previewState == nil || settings.previewDraftWidth == nil {
             width = base.width
         } else {
-            width = CGFloat(settings.previewState == nil ? settings.width(for: state) : settings.displayedWidth)
+            width = CGFloat(settings.width(for: state, geometry: geometry, screenWidth: screenWidth,
+                draftWidth: settings.previewState == nil ? nil : settings.previewDraftWidth))
         }
-        let maximumHeight = max(expandedSize.height, (NSScreen.main?.frame.height ?? 900) - 48)
+        let maximumHeight = max(expandedSize.height, layout.display.frame.height - 48)
         let nextSize = CGSize(width: width, height: min(height, maximumHeight))
-        let oldMode = currentFrameMode
-        currentFrameMode = configuration.mode
-        guard let nextFrame = frame(for: nextSize),
-              currentTargetFrame == nil || !nextFrame.approximatelyEquals(currentTargetFrame!, tolerance: 0.01) else { return }
-        currentTargetSize = nextSize
-        currentTargetFrame = nextFrame
+        let oldMode = layout.frameMode
+        layout.frameMode = configuration.mode
+        let nextFrame = frame(for: nextSize, layout: layout)
+        guard layout.targetFrame == nil || !nextFrame.approximatelyEquals(layout.targetFrame!, tolerance: 0.01) else { return }
+        layout.targetFrame = nextFrame
+        if !animated {
+            window.setFrame(nextFrame, display: true)
+            refreshWindowGeometry(layout)
+            return
+        }
         let motion: Motion
         if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             motion = Motion(duration: 0.12, timingFunction: CAMediaTimingFunction(name: .easeInEaseOut))
@@ -289,7 +398,7 @@ final class WindowManager {
         } else {
             motion = .compact
         }
-        animateFrame(of: window, to: nextSize, motion: motion)
+        animateFrame(of: window, to: nextSize, layout: layout, motion: motion)
     }
 
     // 菜单栏：显示 / 隐藏灵动岛
@@ -309,7 +418,10 @@ final class WindowManager {
     }
 
     private static func applyWindowVisibility(animated: Bool) {
-        guard let window else { return }
+        for window in windows { applyWindowVisibility(to: window, animated: animated) }
+    }
+
+    private static func applyWindowVisibility(to window: NSWindow, animated: Bool) {
         let shouldBeVisible = userWantsWindowVisible || IslandLengthSettings.shared.previewState != nil
         guard shouldBeVisible != window.isVisible else { return }
 
@@ -324,7 +436,8 @@ final class WindowManager {
                 context.timingFunction = CAMediaTimingFunction(name: .easeIn)
                 window.animator().alphaValue = 0
             } completionHandler: {
-                window.orderOut(nil)
+                // A newly connected screen or greeting may have made the islands visible again.
+                if !userWantsWindowVisible && IslandLengthSettings.shared.previewState == nil { window.orderOut(nil) }
                 window.alphaValue = 1
             }
         } else {
@@ -346,22 +459,22 @@ final class WindowManager {
     }
 
     // 顶部贴屏幕顶，水平居中。
-    private static func frame(for size: CGSize) -> NSRect? {
-        guard let screen = window?.screen ?? NSScreen.main else { return nil }
-        if !currentConfiguration.mode.isExpanded, let content = compactContent(for: currentConfiguration) {
-            return content.frame(on: screen.frame, geometry: notchGeometry,
-                                 notchCenterX: physicalNotchCenter(on: screen), shellWidth: size.width)
+    private static func frame(for size: CGSize, layout: IslandWindowLayout) -> NSRect {
+        let display = layout.display
+        if !layout.configuration.mode.isExpanded, let content = compactContent(for: layout.configuration) {
+            return content.frame(on: display.frame, geometry: display.islandGeometry,
+                                 notchCenterX: display.notchCenterX, shellWidth: size.width)
         }
-        return islandFrame(for: size, on: screen.frame)
+        return islandFrame(for: size, on: display.frame)
     }
 
     // 带动画地把窗口移到指定尺寸。
-    private static func animateFrame(of window: NSWindow, to size: CGSize, motion: Motion) {
-        guard let frame = frame(for: size) else { return }
+    private static func animateFrame(of window: NSWindow, to size: CGSize, layout: IslandWindowLayout, motion: Motion) {
+        let frame = frame(for: size, layout: layout)
         if window.frame.approximatelyEquals(frame) { return }
         if !window.isVisible {
             window.setFrame(frame, display: true)
-            refreshWindowGeometry()
+            refreshWindowGeometry(layout)
             return
         }
 
@@ -376,10 +489,11 @@ final class WindowManager {
     }
 
     static func position(window: NSWindow) {
-        guard let frame = frame(for: window.frame.size) else { return }
+        guard let layout = layout(for: window) else { return }
+        let frame = frame(for: window.frame.size, layout: layout)
         window.setFrameOrigin(frame.origin)
-        currentTargetFrame = frame
-        refreshWindowGeometry()
+        layout.targetFrame = frame
+        refreshWindowGeometry(layout)
     }
 }
 

@@ -6,6 +6,9 @@ struct ExpandedIslandGroup<Content: View>: View {
     let group: IslandExpandedLayout.Group
     let width: CGFloat
     @ObservedObject var model: IslandModel
+    @Environment(\.islandInteraction) private var interaction
+    private var presentation: IslandPresentation { IslandPresentation(model: model, interaction: interaction) }
+    var onSelectionChange: (IslandExpandedColumn?, IslandExpandedColumn?) -> Void = { _, _ in }
     @ViewBuilder var content: (IslandExpandedColumn, CGFloat) -> Content
     @State private var selection: IslandExpandedColumn?
 
@@ -38,6 +41,10 @@ struct ExpandedIslandGroup<Content: View>: View {
             if isPaged { IslandPageSwipeReader { move(by: $0) } }
         }
         .animation(IslandMotion.content, value: current)
+        .onChange(of: current, initial: true) { previous, selected in
+            onSelectionChange(previous, selected)
+        }
+        .onDisappear { onSelectionChange(current, nil) }
     }
 
     private var pageControls: some View {
@@ -79,10 +86,10 @@ struct ExpandedIslandGroup<Content: View>: View {
         guard column != current else { return }
         WindowManager.window?.makeFirstResponder(nil)
         if current == .time {
-            model.isTimeToolPopoverPresented = false
-            model.isPomodoroSettingsPresented = false
+            presentation.isTimeToolPopoverPresented = false
+            presentation.isPomodoroSettingsPresented = false
         }
-        if current == .recording { model.isRecordingSettingsPresented = false }
+        if current == .recording { presentation.isRecordingSettingsPresented = false }
         selection = column
     }
 }

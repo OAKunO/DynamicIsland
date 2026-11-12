@@ -14,6 +14,7 @@ struct WindowAccessor: NSViewRepresentable {
     @ObservedObject var batteryStatus: BatteryStatusMonitor
     @ObservedObject var usbConnection: USBConnectionMonitor
     @ObservedObject private var recorder = ScreenRecordingController.shared
+    var interaction: IslandInteractionState? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -31,7 +32,8 @@ struct WindowAccessor: NSViewRepresentable {
                 audioPlayback: audioPlayback,
                 codexStatus: codexStatus,
                 claudeStatus: claudeStatus,
-                deepSeekStatus: deepSeekStatus
+                deepSeekStatus: deepSeekStatus,
+                interaction: interaction
             )
             WindowManager.updateForState(configuration: configuration, window: view.window)
         }
@@ -50,14 +52,15 @@ struct WindowAccessor: NSViewRepresentable {
         Self.configuration(model: model, notes: notes, audioPlayback: audioPlayback,
             codexStatus: codexStatus, claudeStatus: claudeStatus, deepSeekStatus: deepSeekStatus,
             batteryStatus: batteryStatus, usbConnection: usbConnection, recorder: recorder,
-            visibility: recorder.displaySnapshot(displaySettings.snapshot))
+            visibility: recorder.displaySnapshot(displaySettings.snapshot), interaction: interaction)
     }
 
     static func configuration(model: IslandModel, notes: NotesStore, audioPlayback: AudioPlaybackMonitor,
         codexStatus: CodexStatusMonitor, claudeStatus: ClaudeCodeStatusMonitor,
         deepSeekStatus: DeepSeekHarnessStatusMonitor, batteryStatus: BatteryStatusMonitor,
         usbConnection: USBConnectionMonitor, recorder: ScreenRecordingController,
-        visibility: IslandDisplaySettingsSnapshot) -> IslandLengthConfiguration {
+        visibility: IslandDisplaySettingsSnapshot,
+        interaction: IslandInteractionState? = nil) -> IslandLengthConfiguration {
         let codex = IslandAgentActivity(provider: .codex, statuses: codexStatus.tasks.map {
             switch $0.state {
             case .working: .working
@@ -114,9 +117,10 @@ struct WindowAccessor: NSViewRepresentable {
         }
         configuration.recording = recorder.compactActivity
         configuration = visibility.filtering(configuration)
-        let isExpanded = model.isExpanded ||
+        let sharedExpansion = model.isExpanded ||
             (visibility.isEnabled(.codex) && codexStatus.isExpanded) ||
             (visibility.isEnabled(.music) && audioPlayback.isExpanded && audioPlayback.isPlaying)
+        let isExpanded = interaction.map { $0.isExpanded || model.isPersistentAlertVisible } ?? sharedExpansion
         if isExpanded {
             if model.isTimerFinished {
                 configuration.mode = .expandedTimerFinished
@@ -125,7 +129,7 @@ struct WindowAccessor: NSViewRepresentable {
             } else {
                 configuration.mode = .expandedTimerSetup
             }
-        } else if model.isHovered, configuration.agents.isEmpty,
+        } else if interaction?.isHovered ?? model.isHovered, configuration.agents.isEmpty,
                   !configuration.music, configuration.compactActivities.isEmpty {
             configuration.mode = .hovered
         }
@@ -142,6 +146,7 @@ struct WindowAccessor: NSViewRepresentable {
     final class Coordinator {
         private weak var view: NSView?
         private weak var model: IslandModel?
+        private weak var interaction: IslandInteractionState?
         private weak var audioPlayback: AudioPlaybackMonitor?
         private weak var codexStatus: CodexStatusMonitor?
         private weak var claudeStatus: ClaudeCodeStatusMonitor?
@@ -158,10 +163,12 @@ struct WindowAccessor: NSViewRepresentable {
             audioPlayback: AudioPlaybackMonitor,
             codexStatus: CodexStatusMonitor,
             claudeStatus: ClaudeCodeStatusMonitor,
-            deepSeekStatus: DeepSeekHarnessStatusMonitor
+            deepSeekStatus: DeepSeekHarnessStatusMonitor,
+            interaction: IslandInteractionState? = nil
         ) {
             self.view = view
             self.model = model
+            self.interaction = interaction
             self.audioPlayback = audioPlayback
             self.codexStatus = codexStatus
             self.claudeStatus = claudeStatus
@@ -190,17 +197,16 @@ struct WindowAccessor: NSViewRepresentable {
                 collapseWorkItem = nil
                 return
             }
-            guard let model else { return }
-            guard let window = view?.window, window.isVisible else { return }
+            guard let model, let window = view?.window, window.isVisible else { return }
+            let presentation = IslandPresentation(model: model, interaction: interaction)
 
             let mouse = NSEvent.mouseLocation
             // 已进入后扩大退出边界，避免鼠标停在动画边缘时反复触发伸缩。
-            let hoverRect = model.isHovered
+            let hoverRect = presentation.isHovered
                 ? window.frame.insetBy(dx: -8, dy: -6)
                 : window.frame.insetBy(dx: -1, dy: -2)
 
-            // CGRect.contains 不包含最大边界；鼠标顶到屏幕最上方时可能正好等于 maxY。
-            // 单独补一条顶部命中带，让最顶端也能稳定触发悬停。
+            // 顶到屏幕最上方时也应稳定触发悬停。
             let topEdgeRect = NSRect(
                 x: window.frame.minX - 1,
                 y: window.frame.maxY - 2,
@@ -209,8 +215,8 @@ struct WindowAccessor: NSViewRepresentable {
             )
             let inside = hoverRect.contains(mouse) || topEdgeRect.contains(mouse)
 
-            if inside != model.isHovered {
-                model.isHovered = inside
+            if inside != presentation.isHovered {
+                presentation.isHovered = inside
             }
             handleAutoCollapse(inside: inside)
         }
@@ -218,8 +224,10 @@ struct WindowAccessor: NSViewRepresentable {
         // 展开状态下：鼠标移出开始倒计时，移回则取消重置
         private func handleAutoCollapse(inside: Bool) {
             guard let model else { return }
-            let isAnythingExpanded = model.isExpanded ||
+            let presentation = IslandPresentation(model: model, interaction: interaction)
+            let sharedExpansion = model.isExpanded ||
                 audioPlayback?.isExpanded == true || codexStatus?.isExpanded == true
+            let isAnythingExpanded = interaction?.isExpanded ?? sharedExpansion
             guard isAnythingExpanded else {
                 hasHoveredExpandedPanel = false
                 collapseWorkItem?.cancel()
@@ -227,13 +235,13 @@ struct WindowAccessor: NSViewRepresentable {
                 return
             }
             // 番茄钟设置仍遵循移出后收起；其他时间输入保留编辑时的展开状态。
-            if !model.isPomodoroSettingsPresented, view?.window?.firstResponder is NSTextView {
+            if !presentation.isPomodoroSettingsPresented, view?.window?.firstResponder is NSTextView {
                 collapseWorkItem?.cancel()
                 collapseWorkItem = nil
                 return
             }
             // 计时完成和解锁问候由各自的展示逻辑控制收起。
-            guard !model.isPersistentAlertVisible, !model.isTimeToolPopoverPresented else {
+            guard !model.isPersistentAlertVisible, !presentation.isTimeToolPopoverPresented else {
                 collapseWorkItem?.cancel()
                 collapseWorkItem = nil
                 return
@@ -252,16 +260,20 @@ struct WindowAccessor: NSViewRepresentable {
                     guard IslandLengthSettings.shared.previewState == nil else { return }
                     guard let model = self.model,
                           !model.isPersistentAlertVisible,
-                          !model.isTimeToolPopoverPresented,
-                          model.isPomodoroSettingsPresented ||
+                          !IslandPresentation(model: model, interaction: self.interaction).isTimeToolPopoverPresented,
+                          IslandPresentation(model: model, interaction: self.interaction).isPomodoroSettingsPresented ||
                             !(self.view?.window?.firstResponder is NSTextView) else { return }
-                    if model.isPomodoroSettingsPresented {
+                    let presentation = IslandPresentation(model: model, interaction: self.interaction)
+                    if presentation.isPomodoroSettingsPresented {
                         self.view?.window?.makeFirstResponder(nil)
-                        model.isPomodoroSettingsPresented = false
+                        presentation.isPomodoroSettingsPresented = false
                     }
-                    model.isExpanded = false
-                    self.audioPlayback?.collapseMusicCard()
-                    self.codexStatus?.isExpanded = false
+                    if let interaction = self.interaction { interaction.collapse() }
+                    else {
+                        model.isExpanded = false
+                        self.audioPlayback?.collapseMusicCard()
+                        self.codexStatus?.isExpanded = false
+                    }
                 }
                 collapseWorkItem = work
                 DispatchQueue.main.asyncAfter(deadline: .now() + autoCollapseDelay, execute: work)

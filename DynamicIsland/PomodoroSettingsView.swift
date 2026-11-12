@@ -3,6 +3,8 @@ import SwiftUI
 /// The right half of the time card; its controls never resize the island.
 struct PomodoroSettingsView: View {
     @ObservedObject var model: IslandModel
+    @Environment(\.islandInteraction) private var interaction
+    private var presentation: IslandPresentation { IslandPresentation(model: model, interaction: interaction) }
     @State var showsSeconds = false
 
     private func binding<Value>(_ key: WritableKeyPath<PomodoroConfiguration, Value>) -> Binding<Value> {
@@ -38,7 +40,7 @@ struct PomodoroSettingsView: View {
                 .accessibilityLabel(showsSeconds ? "收起秒钟设置" : "展开秒钟设置")
                 Button {
                     WindowManager.window?.makeFirstResponder(nil)
-                    withAnimation(IslandMotion.container) { model.isPomodoroSettingsPresented = false }
+                    withAnimation(IslandMotion.container) { presentation.isPomodoroSettingsPresented = false }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 8, weight: .semibold))

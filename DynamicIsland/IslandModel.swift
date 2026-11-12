@@ -2,6 +2,48 @@ import SwiftUI
 import Combine
 import AppKit
 
+/// Routes panel-only controls locally while preserving standalone previews.
+struct IslandPresentation {
+    let model: IslandModel
+    let interaction: IslandInteractionState?
+
+    var isExpanded: Bool {
+        get { interaction?.isExpanded ?? model.isExpanded }
+        nonmutating set {
+            if let interaction { interaction.isExpanded = newValue }
+            else { model.isExpanded = newValue }
+        }
+    }
+    var isHovered: Bool {
+        get { interaction?.isHovered ?? model.isHovered }
+        nonmutating set {
+            if let interaction { interaction.isHovered = newValue }
+            else { model.isHovered = newValue }
+        }
+    }
+    var isTimeToolPopoverPresented: Bool {
+        get { interaction?.isTimeToolPopoverPresented ?? model.isTimeToolPopoverPresented }
+        nonmutating set {
+            if let interaction { interaction.isTimeToolPopoverPresented = newValue }
+            else { model.isTimeToolPopoverPresented = newValue }
+        }
+    }
+    var isPomodoroSettingsPresented: Bool {
+        get { interaction?.isPomodoroSettingsPresented ?? model.isPomodoroSettingsPresented }
+        nonmutating set {
+            if let interaction { interaction.isPomodoroSettingsPresented = newValue }
+            else { model.isPomodoroSettingsPresented = newValue }
+        }
+    }
+    var isRecordingSettingsPresented: Bool {
+        get { interaction?.isRecordingSettingsPresented ?? model.isRecordingSettingsPresented }
+        nonmutating set {
+            if let interaction { interaction.isRecordingSettingsPresented = newValue }
+            else { model.isRecordingSettingsPresented = newValue }
+        }
+    }
+}
+
 struct UnlockGreeting: Identifiable, Equatable {
     enum Period: Equatable {
         case morning

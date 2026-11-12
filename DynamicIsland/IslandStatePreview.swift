@@ -3,6 +3,7 @@ import SwiftUI
 /// Separate sample models keep real timers, tasks and playback running while
 /// the same production layout is displayed for length editing.
 struct IslandStatePreview: View {
+    @Environment(\.islandWindowMetrics) private var windowMetrics
     let configuration: IslandLengthConfiguration
     @StateObject private var model: IslandModel
 
@@ -13,7 +14,7 @@ struct IslandStatePreview: View {
 
     var body: some View {
         ContentView(model: model, previewConfiguration: configuration)
-            .frame(height: WindowManager.defaultSize(for: configuration).height)
+            .frame(height: WindowManager.defaultSize(for: configuration, geometry: windowMetrics.geometry).height)
             .accessibilityLabel("长度预览：\(configuration.title)")
     }
 }

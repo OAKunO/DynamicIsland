@@ -15,6 +15,10 @@ struct IslandDisplaySettingsIntegration {
         let features = IslandDisplayFeature.allCases
         check(settings.enabledCount == features.count && features.allSatisfy(settings.snapshot.isEnabled),
               "All existing features stay visible before the user changes a setting")
+        check(settings.snapshot.isEnabled(.secondaryDisplays), "Secondary islands are enabled by default on a fresh installation")
+        defaults.set(["unlockGreeting"], forKey: "island.hiddenDisplayFeatures.v1")
+        check(IslandDisplaySettings(defaults: defaults).snapshot.isEnabled(.secondaryDisplays),
+              "Existing preferences default the new secondary display switch to enabled")
         for feature in features {
             settings.setEnabled(false, for: feature)
             check(!settings.snapshot.isEnabled(feature), "Each feature has an independent switch")
@@ -27,6 +31,8 @@ struct IslandDisplaySettingsIntegration {
               "Display-page enable all restores its own content")
         check(settings.enabledFunctionCount == 0 && !settings.snapshot.isEnabled(.unlockGreeting),
               "Display-page enable all preserves a disabled unlock greeting")
+        check(!settings.snapshot.isEnabled(.secondaryDisplays),
+              "Enabling content modules preserves the independent secondary display preference")
         let restoredFunctions = IslandDisplaySettings(defaults: defaults)
         check(restoredFunctions.enabledDisplayCount == IslandDisplayFeature.displayFeatures.count && !restoredFunctions.snapshot.isEnabled(.unlockGreeting),
               "The existing greeting preference persists when moved to the functions page")
@@ -95,6 +101,8 @@ struct IslandDisplaySettingsIntegration {
         check(phoneOnly.phone && WindowManager.defaultSize(for: phoneOnly).width == max(180, WindowManager.notchGeometry.minimumExpandedWidth),
               "Disabling other tools retains only the narrow phone area")
         let exclusiveRecording = IslandDisplaySettingsSnapshot().forRecording(isActive: true, showsStatus: true, coexists: false)
+        check(exclusiveRecording.isEnabled(.secondaryDisplays),
+              "Exclusive recording content does not change the screen selection preference")
         check(!exclusiveRecording.filtering(phoneExpanded).phone,
               "Exclusive recording must hide the connected phone area")
         var computerExpanded = phoneExpanded

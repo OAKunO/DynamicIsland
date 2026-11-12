@@ -4,6 +4,7 @@ import AppKit
 nonisolated struct IslandNotchGeometry: Equatable, Sendable {
     static let horizontalSafety: CGFloat = 10
     static let fallback = Self(width: 185, height: 32)
+    static let externalIsland = Self(width: 185, height: 32)
     let width: CGFloat
     let height: CGFloat
 

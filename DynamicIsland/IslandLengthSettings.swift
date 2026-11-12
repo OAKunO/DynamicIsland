@@ -100,17 +100,29 @@ final class IslandLengthSettings: ObservableObject {
         allowedWidthRange(for: currentState)
     }
 
-    func allowedWidthRange(for state: IslandLengthState) -> ClosedRange<Int> {
+    func allowedWidthRange(for state: IslandLengthState, geometry: IslandNotchGeometry? = nil,
+                           screenWidth: CGFloat? = nil) -> ClosedRange<Int> {
+        let geometry = geometry ?? WindowManager.notchGeometry
+        let screenWidth = screenWidth ?? NSScreen.screens.first?.frame.width ?? 1440
         if state.configuration.mode.isExpanded && state.configuration.mode != .expandedGreeting &&
             state.configuration.mode != .expandedTimerFinished {
-            let limit = WindowManager.currentExpandedWidthLimit
+            let limit = WindowManager.expandedWidthLimit(screenWidth: screenWidth)
             let minimum = Int(ceil(max(IslandExpandedLayout(configuration: state.configuration, maximumWidth: limit).width,
-                                       WindowManager.notchGeometry.minimumExpandedWidth)))
+                                       geometry.minimumExpandedWidth)))
             return minimum...max(minimum, Int(limit))
         }
-        let screenLimit = Int((NSScreen.main?.frame.width ?? 1440) - 24)
-        let minimum = state.configuration.minimumWidth
+        let screenLimit = Int(screenWidth - 24)
+        let minimum = state.configuration.mode == .expandedGreeting ? Int(max(360, geometry.minimumExpandedWidth))
+            : Int(ceil(WindowManager.defaultSize(for: state.configuration, geometry: geometry).width))
         return minimum...max(screenLimit, minimum)
+    }
+
+    func width(for state: IslandLengthState, geometry: IslandNotchGeometry, screenWidth: CGFloat,
+               draftWidth: Int? = nil) -> Int {
+        let natural = Int(ceil(WindowManager.defaultSize(for: state.configuration, geometry: geometry).width))
+        let width = draftWidth ?? customWidth(for: state) ?? natural
+        let range = allowedWidthRange(for: state, geometry: geometry, screenWidth: screenWidth)
+        return min(max(width, range.lowerBound), range.upperBound)
     }
 
     func width(for state: IslandLengthState) -> Int {

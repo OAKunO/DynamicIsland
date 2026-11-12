@@ -3,6 +3,8 @@ import AppKit
 
 struct CardView: View {
     @ObservedObject var model: IslandModel
+    @Environment(\.islandInteraction) private var interaction
+    private var presentation: IslandPresentation { IslandPresentation(model: model, interaction: interaction) }
     var embedded = false
     var displaySnapshot = IslandDisplaySettingsSnapshot()
 
@@ -79,7 +81,17 @@ struct CardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .animation(IslandMotion.content, value: contentMode)
         .environment(\.locale, Locale(identifier: "zh_CN"))
-        .onDisappear { model.dismissAlarmEditor() }
+        .onChange(of: model.selectedTimeTool) { _, selected in
+            if selected != .pomodoro { presentation.isPomodoroSettingsPresented = false }
+            if selected != .alarm { presentation.isTimeToolPopoverPresented = false }
+        }
+        .onChange(of: model.isAlarmEditorPresented) { _, presented in
+            if !presented { presentation.isTimeToolPopoverPresented = false }
+        }
+        .onDisappear {
+            presentation.isTimeToolPopoverPresented = false
+            if interaction == nil { model.dismissAlarmEditor() }
+        }
     }
 
     private var finishedContent: some View {
@@ -143,7 +155,7 @@ struct CardView: View {
     private var pomodoroContent: some View {
         GeometryReader { geometry in
             let settingsWidth = min(geometry.size.width * 0.47, 150)
-            let isSplit = model.isPomodoroSettingsPresented
+            let isSplit = presentation.isPomodoroSettingsPresented
             HStack(alignment: .top, spacing: 0) {
                 pomodoroPreview(compact: isSplit)
                     .frame(width: geometry.size.width - (isSplit ? settingsWidth + 13 : 0),
@@ -153,7 +165,7 @@ struct CardView: View {
                         guard isSplit else { return }
                         WindowManager.window?.makeFirstResponder(nil)
                         withAnimation(IslandMotion.container) {
-                            model.isPomodoroSettingsPresented = false
+                            presentation.isPomodoroSettingsPresented = false
                         }
                     }, including: isSplit ? .all : .none)
                     .padding(.trailing, isSplit ? 6 : 0)
@@ -196,13 +208,13 @@ struct CardView: View {
                         .animation(IslandMotion.control, value: model.pomodoro.completedFocusCount)
                         .animation(IslandMotion.control, value: model.pomodoroConfiguration.rounds)
                     Button {
-                        withAnimation(IslandMotion.container) { model.isPomodoroSettingsPresented.toggle() }
+                        withAnimation(IslandMotion.container) { presentation.isPomodoroSettingsPresented.toggle() }
                     } label: {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 12, weight: .medium))
                             .frame(width: 26, height: 24)
-                            .foregroundStyle(model.isPomodoroSettingsPresented ? Color.orange : .white)
-                            .background(.white.opacity(model.isPomodoroSettingsPresented ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 7))
+                            .foregroundStyle(presentation.isPomodoroSettingsPresented ? Color.orange : .white)
+                            .background(.white.opacity(presentation.isPomodoroSettingsPresented ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 7))
                     }
                     .buttonStyle(.plain).accessibilityLabel("设置番茄钟时长与循环")
                 }
@@ -265,7 +277,7 @@ struct CardView: View {
         let durationText = duration % 60 == 0 ? "\(duration / 60) 分" : "\(duration / 60)分\(duration % 60)秒"
         return Button {
             if compact { WindowManager.window?.makeFirstResponder(nil) }
-            withAnimation(IslandMotion.container) { model.isPomodoroSettingsPresented = !compact }
+            withAnimation(IslandMotion.container) { presentation.isPomodoroSettingsPresented = !compact }
         } label: {
             HStack(spacing: 4) {
                 Circle().fill(color.opacity(0.85)).frame(width: 4, height: 4)
@@ -387,7 +399,7 @@ struct CardView: View {
                     .foregroundStyle(.white)
             }
             .font(.system(size: 11, weight: .medium))
-            Button { model.isTimeToolPopoverPresented = true } label: {
+            Button { presentation.isTimeToolPopoverPresented = true } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "calendar").foregroundStyle(Color.blue.opacity(0.9))
                     Text(model.alarmTime, format: .dateTime.year().month().day().weekday())
@@ -400,13 +412,13 @@ struct CardView: View {
                 .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 9))
             }
             .buttonStyle(.plain).accessibilityLabel("选择响铃日期")
-            .popover(isPresented: $model.isTimeToolPopoverPresented, arrowEdge: .bottom) {
+            .popover(isPresented: Binding(get: { presentation.isTimeToolPopoverPresented }, set: { presentation.isTimeToolPopoverPresented = $0 }), arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("选择响铃日期").font(.system(size: 15, weight: .semibold))
                     DatePicker("日期", selection: $model.alarmTime,
                                in: Calendar.current.startOfDay(for: Date())..., displayedComponents: .date)
                         .datePickerStyle(.graphical).labelsHidden()
-                    Button("完成") { model.isTimeToolPopoverPresented = false }
+                    Button("完成") { presentation.isTimeToolPopoverPresented = false }
                         .buttonStyle(TimeToolActionStyle(color: .blue))
                 }
                 .padding(16).frame(width: 300)
